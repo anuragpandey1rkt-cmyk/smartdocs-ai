@@ -111,16 +111,23 @@ if not st.session_state.logged_in:
 else:
     # ---------- SIDEBAR ----------
     st.sidebar.success(f"Role: {st.session_state.role}")
-
     st.sidebar.markdown("### 📂 Navigation")
 
-    st.sidebar.page_link("pages/1_Dashboard.py", label="📊 Dashboard")
-    st.sidebar.page_link("pages/2_Document_Summary.py", label="📘 Document Summary")
-    st.sidebar.page_link("pages/3_Ask_Questions.py", label="❓ Ask Questions")
-    st.sidebar.page_link("pages/4_Keyword_Extraction.py", label="🔑 Keyword Extraction")
+    if st.sidebar.button("📊 Dashboard"):
+        st.switch_page("pages/1_Dashboard.py")
+
+    if st.sidebar.button("📘 Document Summary"):
+        st.switch_page("pages/2_Document_Summary.py")
+
+    if st.sidebar.button("❓ Ask Questions"):
+        st.switch_page("pages/3_Ask_Questions.py")
+
+    if st.sidebar.button("🔑 Keyword Extraction"):
+        st.switch_page("pages/4_Keyword_Extraction.py")
 
     if st.session_state.role == "Admin":
-        st.sidebar.page_link("pages/5_Document_History.py", label="🗂️ Document History")
+        if st.sidebar.button("🗂️ Document History"):
+            st.switch_page("pages/5_Document_History.py")
 
     st.sidebar.divider()
     st.sidebar.button("🚪 Logout", on_click=logout)
