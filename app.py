@@ -2,139 +2,162 @@ import streamlit as st
 import pandas as pd
 import os
 import hashlib
+from PyPDF2 import PdfReader
+import google.generativeai as genai
 
-st.set_page_config(page_title="SmartDoc AI", layout="wide")
+# =============================
+# CONFIG
+# =============================
+st.set_page_config(
+    page_title="SmartDoc AI",
+    page_icon="📄",
+    layout="wide"
+)
 
 USERS_FILE = "data/users.csv"
 
-# =============================
-# 🔐 SECURITY HELPERS
-# =============================
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
-
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+model = genai.GenerativeModel("gemini-pro")
 
 # =============================
-# DATA HELPERS
+# UTILITIES
 # =============================
+def hash_password(pw):
+    return hashlib.sha256(pw.encode()).hexdigest()
+
 def load_users():
     if os.path.exists(USERS_FILE):
         return pd.read_csv(USERS_FILE)
     return pd.DataFrame(columns=["username", "password", "role"])
 
-
 def save_user(username, password, role):
     df = load_users()
-    hashed_pw = hash_password(password)
-    df.loc[len(df)] = [username, hashed_pw, role]
+    df.loc[len(df)] = [username, hash_password(password), role]
     df.to_csv(USERS_FILE, index=False)
-
 
 def authenticate(username, password):
     df = load_users()
-    hashed_pw = hash_password(password)
-
-    match = df[
-        (df["username"] == username) &
-        (df["password"] == hashed_pw)
-    ]
-
-    if not match.empty:
-        return match.iloc[0]["role"]
+    pw = hash_password(password)
+    user = df[(df.username == username) & (df.password == pw)]
+    if not user.empty:
+        return user.iloc[0]["role"]
     return None
 
+def extract_text(pdf):
+    reader = PdfReader(pdf)
+    return "".join(page.extract_text() or "" for page in reader.pages)
 
 # =============================
 # SESSION STATE
 # =============================
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
-
 if "role" not in st.session_state:
     st.session_state.role = None
-
 
 def logout():
     st.session_state.logged_in = False
     st.session_state.role = None
     st.rerun()
 
-
 # =============================
-# AUTH UI
+# AUTH
 # =============================
 if not st.session_state.logged_in:
+    st.markdown("## 📄 SmartDoc AI")
+    st.markdown("### Enterprise Document Intelligence Platform")
 
-    st.title("📄 SmartDoc AI")
+    tab1, tab2 = st.tabs(["🔑 Login", "📝 Sign Up"])
 
-    option = st.radio("Choose Option", ["Login", "Sign Up"])
-
-    # -------- SIGN UP --------
-    if option == "Sign Up":
-        st.subheader("📝 Create Account")
-
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-
-        if st.button("Register"):
-            users = load_users()
-
-            if username in users["username"].values:
-                st.error("Username already exists")
-            elif len(password) < 6:
-                st.error("Password must be at least 6 characters")
-            else:
-                role = "Admin" if users.empty else "User"
-                save_user(username, password, role)
-                st.success("Account created successfully")
-                st.info("Please login now")
-
-    # -------- LOGIN --------
-    else:
-        st.subheader("🔑 Login")
-
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-
+    with tab1:
+        u = st.text_input("Username")
+        p = st.text_input("Password", type="password")
         if st.button("Login"):
-            role = authenticate(username, password)
+            role = authenticate(u, p)
             if role:
                 st.session_state.logged_in = True
                 st.session_state.role = role
                 st.rerun()
             else:
-                st.error("Invalid username or password")
+                st.error("Invalid credentials")
+
+    with tab2:
+        u = st.text_input("New Username")
+        p = st.text_input("New Password", type="password")
+        if st.button("Register"):
+            users = load_users()
+            if u in users.username.values:
+                st.error("User already exists")
+            else:
+                role = "Admin" if users.empty else "User"
+                save_user(u, p, role)
+                st.success("Account created. Please login.")
+
+    st.stop()
 
 # =============================
-# MAIN APP
+# SIDEBAR NAVIGATION (ALWAYS VISIBLE)
 # =============================
-else:
-    # ---------- SIDEBAR ----------
-    st.sidebar.success(f"Role: {st.session_state.role}")
-    st.sidebar.markdown("### 📂 Navigation")
+st.sidebar.success(f"Role: {st.session_state.role}")
+page = st.sidebar.radio(
+    "📂 Navigation",
+    [
+        "🏠 Home",
+        "📊 Dashboard",
+        "📘 Document Summary",
+        "❓ Ask Questions",
+        "🔑 Keyword Extraction"
+    ] + (["🗂️ Document History"] if st.session_state.role == "Admin" else [])
+)
+st.sidebar.button("🚪 Logout", on_click=logout)
 
-    if st.sidebar.button("📊 Dashboard"):
-        st.switch_page("pages/1_Dashboard.py")
+# =============================
+# PAGES
+# =============================
 
-    if st.sidebar.button("📘 Document Summary"):
-        st.switch_page("pages/2_Document_Summary.py")
+if page == "🏠 Home":
+    st.markdown("## 👋 Welcome to SmartDoc AI")
+    st.info("AI-powered platform for document understanding, summarization and insights.")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("AI Engine", "Gemini Pro")
+    col2.metric("Security", "Hashed Passwords")
+    col3.metric("Deployment", "Cloud Ready")
 
-    if st.sidebar.button("❓ Ask Questions"):
-        st.switch_page("pages/3_Ask_Questions.py")
+elif page == "📊 Dashboard":
+    st.markdown("## 📊 Dashboard")
+    st.metric("Documents Processed", 12)
+    st.metric("AI Queries", 34)
 
-    if st.sidebar.button("🔑 Keyword Extraction"):
-        st.switch_page("pages/4_Keyword_Extraction.py")
+elif page == "📘 Document Summary":
+    st.markdown("## 📘 Document Summary")
+    pdf = st.file_uploader("Upload PDF", type="pdf")
+    if pdf:
+        text = extract_text(pdf)
+        summary = model.generate_content(f"Summarize this document:\n{text}").text
+        st.markdown(summary)
 
-    if st.session_state.role == "Admin":
-        if st.sidebar.button("🗂️ Document History"):
-            st.switch_page("pages/5_Document_History.py")
+elif page == "❓ Ask Questions":
+    st.markdown("## ❓ Ask Questions")
+    pdf = st.file_uploader("Upload PDF", type="pdf")
+    q = st.text_input("Enter your question")
+    if pdf and q:
+        text = extract_text(pdf)
+        ans = model.generate_content(
+            f"Answer using this document only:\n{text}\nQuestion:{q}"
+        ).text
+        st.write(ans)
 
-    st.sidebar.divider()
-    st.sidebar.button("🚪 Logout", on_click=logout)
+elif page == "🔑 Keyword Extraction":
+    st.markdown("## 🔑 Keyword Extraction")
+    pdf = st.file_uploader("Upload PDF", type="pdf")
+    if pdf:
+        text = extract_text(pdf)
+        words = pd.Series(text.split()).value_counts().head(15)
+        st.dataframe(words)
 
-    # ---------- MAIN ----------
-    st.title("📂 Welcome to SmartDoc AI")
-    st.info("👉 Select a feature from the sidebar")
+elif page == "🗂️ Document History":
+    st.markdown("## 🗂️ Document History")
+    st.info("Admin-only feature (future database integration)")
 
 
 
