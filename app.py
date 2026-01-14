@@ -109,10 +109,25 @@ if not st.session_state.logged_in:
 # MAIN APP
 # =============================
 else:
+    # ---------- SIDEBAR ----------
     st.sidebar.success(f"Role: {st.session_state.role}")
-    st.sidebar.button("Logout", on_click=logout)
 
+    st.sidebar.markdown("### 📂 Navigation")
+
+    st.sidebar.page_link("pages/1_Dashboard.py", label="📊 Dashboard")
+    st.sidebar.page_link("pages/2_Document_Summary.py", label="📘 Document Summary")
+    st.sidebar.page_link("pages/3_Ask_Questions.py", label="❓ Ask Questions")
+    st.sidebar.page_link("pages/4_Keyword_Extraction.py", label="🔑 Keyword Extraction")
+
+    if st.session_state.role == "Admin":
+        st.sidebar.page_link("pages/5_Document_History.py", label="🗂️ Document History")
+
+    st.sidebar.divider()
+    st.sidebar.button("🚪 Logout", on_click=logout)
+
+    # ---------- MAIN ----------
     st.title("📂 Welcome to SmartDoc AI")
-    st.info("👉 Use the sidebar to navigate application pages")
+    st.info("👉 Select a feature from the sidebar")
+
 
 
