@@ -4,6 +4,7 @@ import os
 import hashlib
 from PyPDF2 import PdfReader
 from groq import Groq
+from datetime import datetime
 
 # =============================
 # CONFIG
@@ -15,41 +16,50 @@ st.set_page_config(
 )
 
 USERS_FILE = "data/users.csv"
+os.makedirs("data", exist_ok=True)
 
-
+# =============================
+# GROQ CLIENT
+# =============================
 groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 def groq_generate(prompt):
     response = groq_client.chat.completions.create(
         model="llama-3.1-8b-instant",
         messages=[
-            {"role": "system", "content": "You are a professional document analysis assistant."},
+            {"role": "system", "content": "You are an enterprise document intelligence assistant."},
             {"role": "user", "content": prompt}
         ],
         temperature=0.3
     )
     return response.choices[0].message.content
 
-
-def chunk_text(text, max_chars=2500):
-    return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
-
-
-
 # =============================
-# UTILITIES
+# HELPERS
 # =============================
+def chunk_text(text, size=2500):
+    return [text[i:i+size] for i in range(0, len(text), size)]
+
+def extract_text(pdf):
+    reader = PdfReader(pdf)
+    return "".join(page.extract_text() or "" for page in reader.pages)
+
 def hash_password(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def load_users():
     if os.path.exists(USERS_FILE):
         return pd.read_csv(USERS_FILE)
-    return pd.DataFrame(columns=["username", "password", "role"])
+    return pd.DataFrame(columns=["username", "password", "role", "created_at"])
 
 def save_user(username, password, role):
     df = load_users()
-    df.loc[len(df)] = [username, hash_password(password), role]
+    df.loc[len(df)] = [
+        username,
+        hash_password(password),
+        role,
+        datetime.now().strftime("%Y-%m-%d %H:%M")
+    ]
     df.to_csv(USERS_FILE, index=False)
 
 def authenticate(username, password):
@@ -60,10 +70,6 @@ def authenticate(username, password):
         return user.iloc[0]["role"]
     return None
 
-def extract_text(pdf):
-    reader = PdfReader(pdf)
-    return "".join(page.extract_text() or "" for page in reader.pages)
-
 # =============================
 # SESSION STATE
 # =============================
@@ -71,6 +77,8 @@ if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
 if "role" not in st.session_state:
     st.session_state.role = None
+if "stats" not in st.session_state:
+    st.session_state.stats = {"docs": 0, "queries": 0}
 
 def logout():
     st.session_state.logged_in = False
@@ -78,7 +86,7 @@ def logout():
     st.rerun()
 
 # =============================
-# AUTH
+# AUTH UI
 # =============================
 if not st.session_state.logged_in:
     st.markdown("## 📄 SmartDoc AI")
@@ -113,37 +121,46 @@ if not st.session_state.logged_in:
     st.stop()
 
 # =============================
-# SIDEBAR NAVIGATION (ALWAYS VISIBLE)
+# SIDEBAR
 # =============================
+st.sidebar.markdown("## 📂 SmartDoc AI")
 st.sidebar.success(f"Role: {st.session_state.role}")
+
 page = st.sidebar.radio(
-    "📂 Navigation",
+    "Navigation",
     [
         "🏠 Home",
         "📊 Dashboard",
         "📘 Document Summary",
         "❓ Ask Questions",
-        "🔑 Keyword Extraction"
-    ] + (["🗂️ Document History"] if st.session_state.role == "Admin" else [])
+        "🔑 Keyword Extraction",
+    ] + (["🗂️ User Management"] if st.session_state.role == "Admin" else [])
 )
+
 st.sidebar.button("🚪 Logout", on_click=logout)
 
 # =============================
 # PAGES
 # =============================
-
 if page == "🏠 Home":
     st.markdown("## 👋 Welcome to SmartDoc AI")
-    st.info("AI-powered platform for document understanding, summarization and insights.")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("AI Engine", "Gemini Pro")
-    col2.metric("Security", "Hashed Passwords")
-    col3.metric("Deployment", "Cloud Ready")
+    st.write(
+        "SmartDoc AI helps enterprises, students, and professionals "
+        "analyze large documents using fast AI models."
+    )
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("AI Engine", "Groq LLaMA 3.1")
+    c2.metric("Documents Processed", st.session_state.stats["docs"])
+    c3.metric("AI Queries", st.session_state.stats["queries"])
 
 elif page == "📊 Dashboard":
-    st.markdown("## 📊 Dashboard")
-    st.metric("Documents Processed", 12)
-    st.metric("AI Queries", 34)
+    st.markdown("## 📊 Usage Dashboard")
+
+    st.metric("Total Documents", st.session_state.stats["docs"])
+    st.metric("Total AI Queries", st.session_state.stats["queries"])
+
+    st.info("Analytics can be extended with Supabase or Azure SQL.")
 
 elif page == "📘 Document Summary":
     st.markdown("## 📘 Document Summary")
@@ -154,56 +171,61 @@ elif page == "📘 Document Summary":
         text = extract_text(pdf)
 
         if len(text.strip()) < 100:
-            st.error("PDF has no readable text.")
+            st.error("PDF contains no readable text.")
             st.stop()
 
-        def chunk_text(text, size=3000):
-            return [text[i:i+size] for i in range(0, len(text), size)]
-
-        chunks = chunk_text(text)[:4]  # safety limit
+        chunks = chunk_text(text)[:4]
         summaries = []
 
-        with st.spinner("Summarizing document with AI..."):
-            try:
-                for chunk in chunks:
-                    summary = groq_generate(
-                        f"Summarize the following document section in bullet points:\n{chunk}"
+        with st.spinner("Analyzing document with AI..."):
+            for chunk in chunks:
+                summaries.append(
+                    groq_generate(
+                        f"Summarize this document section in bullet points:\n{chunk}"
                     )
-                    summaries.append(summary)
-
-                final_summary = groq_generate(
-                    "Combine the following summaries into a concise professional summary:\n"
-                    + "\n".join(summaries)
                 )
 
-                st.success("Summary generated successfully")
-                st.markdown(final_summary)
+            final_summary = groq_generate(
+                "Combine the following summaries into a concise professional summary:\n"
+                + "\n".join(summaries)
+            )
 
-            except Exception as e:
-                st.error("AI service failed. Please try again.")
+        st.success("Summary generated")
+        st.markdown(final_summary)
+
+        st.session_state.stats["docs"] += 1
+        st.session_state.stats["queries"] += len(chunks) + 1
 
 elif page == "❓ Ask Questions":
-    st.markdown("## ❓ Ask Questions")
+    st.markdown("## ❓ Ask Questions from Document")
+
     pdf = st.file_uploader("Upload PDF", type="pdf")
-    q = st.text_input("Enter your question")
-    if pdf and q:
-        text = extract_text(pdf)
-        ans = model.generate_content(
-            f"Answer using this document only:\n{text}\nQuestion:{q}"
-        ).text
-        st.write(ans)
+    question = st.text_input("Enter your question")
+
+    if pdf and question:
+        text = extract_text(pdf)[:6000]
+
+        with st.spinner("Thinking..."):
+            answer = groq_generate(
+                f"Answer ONLY from the document below:\n\n{text}\n\nQuestion:\n{question}"
+            )
+
+        st.markdown("### ✅ Answer")
+        st.write(answer)
+
+        st.session_state.stats["queries"] += 1
 
 elif page == "🔑 Keyword Extraction":
     st.markdown("## 🔑 Keyword Extraction")
+
     pdf = st.file_uploader("Upload PDF", type="pdf")
+
     if pdf:
         text = extract_text(pdf)
-        words = pd.Series(text.split()).value_counts().head(15)
+        words = pd.Series(text.lower().split()).value_counts().head(15)
         st.dataframe(words)
 
-elif page == "🗂️ Document History":
-    st.markdown("## 🗂️ Document History")
-    st.info("Admin-only feature (future database integration)")
-
-
+elif page == "🗂️ User Management":
+    st.markdown("## 🗂️ User Management (Admin)")
+    st.dataframe(load_users())
 
