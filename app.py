@@ -21,7 +21,7 @@ groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
 
 def groq_generate(prompt):
     response = groq_client.chat.completions.create(
-        model="llama3-8b-8192",
+        model="llama-3.1-8b-instant",
         messages=[
             {"role": "system", "content": "You are a professional document analysis assistant."},
             {"role": "user", "content": prompt}
@@ -34,7 +34,7 @@ def groq_generate(prompt):
 try:
     _ = model.generate_content("Say OK").text
 except Exception as e:
-    st.error("❌ Gemini API is not enabled for this project.")
+    st.error("❌ API is not enabled for this project.")
     st.stop()
 
 
