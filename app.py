@@ -31,13 +31,6 @@ def groq_generate(prompt):
     return response.choices[0].message.content
 
 
-try:
-    _ = model.generate_content("Say OK").text
-except Exception as e:
-    st.error("❌ API is not enabled for this project.")
-    st.stop()
-
-
 def chunk_text(text, max_chars=2500):
     return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
 
