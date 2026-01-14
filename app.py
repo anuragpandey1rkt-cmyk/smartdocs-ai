@@ -18,6 +18,13 @@ st.set_page_config(
 USERS_FILE = "data/users.csv"
 os.makedirs("data", exist_ok=True)
 
+from supabase import create_client
+
+supabase = create_client(
+    st.secrets["SUPABASE_URL"],
+    st.secrets["SUPABASE_ANON_KEY"]
+)
+
 # =============================
 # GROQ CLIENT
 # =============================
@@ -81,44 +88,53 @@ if "stats" not in st.session_state:
     st.session_state.stats = {"docs": 0, "queries": 0}
 
 def logout():
-    st.session_state.logged_in = False
-    st.session_state.role = None
+    supabase.auth.sign_out()
+    st.session_state.user = None
     st.rerun()
 
 # =============================
 # AUTH UI
 # =============================
-if not st.session_state.logged_in:
+if "user" not in st.session_state:
+    st.session_state.user = None
+
+if not st.session_state.user:
     st.markdown("## 📄 SmartDoc AI")
     st.markdown("### Enterprise Document Intelligence Platform")
 
     tab1, tab2 = st.tabs(["🔑 Login", "📝 Sign Up"])
 
     with tab1:
-        u = st.text_input("Username")
-        p = st.text_input("Password", type="password")
+        email = st.text_input("Email")
+        password = st.text_input("Password", type="password")
+
         if st.button("Login"):
-            role = authenticate(u, p)
-            if role:
-                st.session_state.logged_in = True
-                st.session_state.role = role
+            try:
+                res = supabase.auth.sign_in_with_password({
+                    "email": email,
+                    "password": password
+                })
+                st.session_state.user = res.user
                 st.rerun()
-            else:
-                st.error("Invalid credentials")
+            except Exception:
+                st.error("Invalid email or password")
 
     with tab2:
-        u = st.text_input("New Username")
-        p = st.text_input("New Password", type="password")
+        email = st.text_input("New Email")
+        password = st.text_input("New Password", type="password")
+
         if st.button("Register"):
-            users = load_users()
-            if u in users.username.values:
-                st.error("User already exists")
-            else:
-                role = "Admin" if users.empty else "User"
-                save_user(u, p, role)
+            try:
+                supabase.auth.sign_up({
+                    "email": email,
+                    "password": password
+                })
                 st.success("Account created. Please login.")
+            except Exception:
+                st.error("User already exists or invalid email")
 
     st.stop()
+
 
 # =============================
 # SIDEBAR
