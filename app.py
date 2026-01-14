@@ -192,7 +192,6 @@ def logout():
     st.session_state.role = None
     st.session_state.username = None
     st.session_state.current_doc_text = None
-    st.rerun()
 
 # =============================
 # AUTH SCREEN
