@@ -172,7 +172,12 @@ def close_ticket(ticket_id):
     except Exception as e:
         st.error(f"Error closing ticket: {e}")
         return False
-
+        
+# Wrapper function for the button callback to fix st.rerun() error
+def close_ticket_callback(ticket_id):
+    if close_ticket(ticket_id):
+        st.toast(f"Ticket #{ticket_id} closed successfully!")
+        
 # =============================
 # SESSION MANAGEMENT
 # =============================
@@ -216,7 +221,7 @@ if not st.session_state.logged_in:
         np = st.text_input("Pick a Password", type="password")
         if st.button("Create Account"):
             # LOGIC: 
-            # 1. If username is 'admin' (or 'Admin'), FORCE role to be 'Admin'.
+            # 1. If username is 'admin' (case insensitive), FORCE role to be 'Admin'.
             # 2. If it's the very first user in the system, make them 'Admin'.
             # 3. Everyone else is 'Employee'.
             
@@ -226,7 +231,7 @@ if not st.session_state.logged_in:
             except: count = 0
             
             if nu.lower() == "admin":
-                role = "Admin"  # <--- THIS IS THE FIX YOU WANTED
+                role = "Admin"  # <--- FORCES ADMIN ROLE
             elif count == 0:
                 role = "Admin"  # First user fallback
             else:
@@ -382,11 +387,13 @@ elif page == "📊 Admin Dashboard":
                     st.write(f"**Description:** {row['description']}")
                     st.caption(f"Raised: {row['created_at']}")
                 with c2:
-                    # The ACTION Button
-                    if st.button("✅ Mark Closed", key=f"close_{row['id']}"):
-                        if close_ticket(row['id']):
-                            st.toast(f"Ticket #{row['id']} closed successfully!")
-                            st.rerun() # Refresh page instantly
+                    # The ACTION Button using CALLBACK (Fixes st.rerun error)
+                    st.button(
+                        "✅ Mark Closed",
+                        key=f"close_{row['id']}",
+                        on_click=close_ticket_callback,
+                        args=(row['id'],)
+                    )
     else:
         st.success("🎉 No pending tickets! Good job.")
 
@@ -404,7 +411,7 @@ elif page == "📊 Admin Dashboard":
         # Style the dataframe to highlight Status
         if not tickets_df.empty:
             st.dataframe(
-                tickets_df.style.applymap(
+                tickets_df.style.map(
                     lambda x: 'background-color: #ffcdd2' if x == 'Open' else 'background-color: #c8e6c9',
                     subset=['status']
                 ),
