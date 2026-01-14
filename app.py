@@ -5,6 +5,8 @@ import hashlib
 from PyPDF2 import PdfReader
 from groq import Groq
 from datetime import datetime
+from gtts import gTTS
+import io
 
 # =============================
 # APP CONFIG
@@ -153,7 +155,7 @@ if uploaded_file:
             else:
                 st.sidebar.error("Could not read PDF text.")
 
-page = st.sidebar.radio("Navigate", ["🏠 Home", "📘 Summary", "🔑 Insights", "❓ Chat"])
+page = st.sidebar.radio("Navigate", ["🏠 Home", "📘 Summary", "🔑 Insights", "❓ Chat", "🎓 Take a Quiz"])
 st.sidebar.divider()
 if st.sidebar.button("Logout"):
     logout()
@@ -179,7 +181,20 @@ elif page == "📘 Summary":
                 # REDUCED LIMIT to 10,000 chars to avoid Error 413
                 doc_preview = st.session_state.current_doc_text[:10000] 
                 summary = ai(f"Provide a comprehensive summary of this document:\n\n{doc_preview}")
-                st.markdown(summary)
+                st.markdown(summary) # This line already exists
+
+                # ADD THIS LINE BELOW:
+                # It uses Google's text-to-speech API (gTTS)
+                # You might need to pip install gTTS first
+                try:
+                    # Create audio in memory
+                    tts = gTTS(text=summary, lang='en')
+                    audio_bytes = io.BytesIO()
+                    tts.write_to_fp(audio_bytes)
+    
+                    st.audio(audio_bytes, format='audio/mp3')
+                except:
+                    st.caption("Audio generation requires 'gTTS' library. (pip install gTTS)")
 
 elif page == "🔑 Insights":
     st.header("Key Insights")
@@ -228,3 +243,59 @@ elif page == "❓ Chat":
                 
                 st.session_state.messages.append({"role": "assistant", "content": response})
                 st.chat_message("assistant").write(response)
+
+elif page == "🎓 Take a Quiz":
+    st.header("🎓 Test Your Knowledge")
+    
+    if not st.session_state.current_doc_text:
+        st.warning("Please upload a document first.")
+    else:
+        # Button to generate a NEW quiz
+        if st.button("Generate New Quiz"):
+            with st.spinner("Creating questions..."):
+                doc_preview = st.session_state.current_doc_text[:10000]
+                
+                # Strict prompt to get clean format
+                quiz_prompt = f"""
+                Generate 3 multiple-choice questions based on this text.
+                Format exactly like this:
+                
+                Q1: [Question text]
+                A) [Option]
+                B) [Option]
+                C) [Option]
+                Answer: [Correct Option Letter]
+                
+                Q2: ...
+                
+                TEXT:
+                {doc_preview}
+                """
+                
+                quiz_content = ai(quiz_prompt)
+                st.session_state.quiz_data = quiz_content # Save to session so it doesn't vanish
+
+        # Display the Quiz if it exists
+        if "quiz_data" in st.session_state:
+            st.markdown("---")
+            st.subheader("Quiz")
+            
+            # Simple parsing to hide answers initially
+            # We display the raw AI output but you can use an 'Expander' to hide answers
+            
+            questions = st.session_state.quiz_data.split("Q")
+            
+            for q in questions:
+                if q.strip():
+                    # Clean up formatting a bit
+                    full_q = "Q" + q 
+                    
+                    # Split question from answer to make it interactive
+                    if "Answer:" in full_q:
+                        q_text, ans_text = full_q.split("Answer:")
+                        
+                        st.info(q_text) # Show Question
+                        with st.expander("👀 Reveal Answer"):
+                            st.success(f"Correct Answer: {ans_text}")
+                    else:
+                        st.write(full_q)
