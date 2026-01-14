@@ -17,10 +17,18 @@ st.set_page_config(
 USERS_FILE = "data/users.csv"
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("models/gemini-1.0-pro")
 
-def chunk_text(text, max_chars=4000):
+try:
+    _ = model.generate_content("Say OK").text
+except Exception as e:
+    st.error("❌ Gemini API is not enabled for this project.")
+    st.stop()
+
+
+def chunk_text(text, max_chars=2500):
     return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
+
 
 
 # =============================
@@ -134,25 +142,37 @@ elif page == "📊 Dashboard":
 
 elif page == "📘 Document Summary":
     st.markdown("## 📘 Document Summary")
+
     pdf = st.file_uploader("Upload PDF", type="pdf")
+
     if pdf:
         text = extract_text(pdf)
+
+        if len(text.strip()) < 100:
+            st.error("PDF contains no readable text.")
+            st.stop()
+
         chunks = chunk_text(text)
-        partial_summaries = []
-        with st.spinner("Analyzing document with AI..."):
-            for chunk in chunks[:5]:  # limit for safety
-                response = model.generate_content(
-                    f"Summarize this part of the document:\n{chunk}"
+        partial = []
+
+        with st.spinner("Summarizing document with AI..."):
+            try:
+                for chunk in chunks[:3]:
+                    res = model.generate_content(
+                        f"Summarize this section briefly:\n{chunk}"
+                    )
+                    partial.append(res.text)
+
+                final = model.generate_content(
+                    "Combine the following summaries into a concise bullet-point summary:\n"
+                    + "\n".join(partial)
                 )
-                partial_summaries.append(response.text)
 
-        final_summary = model.generate_content(
-                "Combine the following summaries into a clear bullet-point summary:\n"
-            + "\n".join(partial_summaries)
-        ).text
+                st.success("Summary generated successfully")
+                st.markdown(final.text)
 
-        st.markdown(final_summary)
-
+            except Exception as e:
+                st.error("❌ AI service failed. Please try a smaller document.")
 
 elif page == "❓ Ask Questions":
     st.markdown("## ❓ Ask Questions")
