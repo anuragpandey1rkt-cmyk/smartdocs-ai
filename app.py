@@ -160,6 +160,19 @@ def get_my_tickets(username):
         ).fetchall()
     return pd.DataFrame(result, columns=["Ticket ID", "Type", "Description", "Status", "Date"])
 
+# NEW: Function for Admin to close tickets
+def close_ticket(ticket_id):
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("UPDATE tickets SET status = 'Closed' WHERE id = :id"),
+                {"id": ticket_id}
+            )
+        return True
+    except Exception as e:
+        st.error(f"Error closing ticket: {e}")
+        return False
+        
 # =============================
 # SESSION MANAGEMENT
 # =============================
@@ -315,66 +328,82 @@ elif page == "❓ Chat":
                 st.chat_message("assistant").write(response)
 
 elif page == "📊 Admin Dashboard":
-    st.header("📊 Executive Dashboard")
+    st.header("📊 Admin Control Center")
     
-    # SECURITY CHECK: Only Admins can see this page
+    # 1. STRICT SECURITY CHECK
+    # If the user is NOT an Admin, stop everything and hide the page.
     if st.session_state.role != "Admin":
-        st.error("⛔ ACCESS DENIED. You do not have Admin permissions.")
-        st.stop()
+        st.error("⛔ ACCESS DENIED: You do not have permission to view this page.")
+        st.image("https://media.giphy.com/media/njYrp176NQsHS/giphy.gif", width=300) # Optional fun GIF
+        st.stop() # This prevents the rest of the code from running
 
-    st.write("Overview of system performance and ticket metrics.")
-    
-    # 1. Fetch Data from Database
+    # 2. Fetch Data (With Filters)
     with engine.connect() as conn:
-        tickets_df = pd.read_sql("SELECT * FROM tickets", conn)
-        users_df = pd.read_sql("SELECT * FROM users", conn)
-    
-    # 2. Top Level Metrics
+        # Filter: Show ONLY Employees (Hide Admins)
+        users_df = pd.read_sql("SELECT username, role, created_at FROM users WHERE role != 'Admin'", conn)
+        # Fetch All Tickets
+        tickets_df = pd.read_sql("SELECT * FROM tickets ORDER BY created_at DESC", conn)
+
+    # 3. Key Metrics
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Employees", len(users_df))
     with col2:
-        st.metric("Total Tickets Raised", len(tickets_df))
+        st.metric("Total Tickets", len(tickets_df))
     with col3:
-        # Count 'Open' tickets if you had a status column, otherwise just count total
-        open_tickets = len(tickets_df[tickets_df['status'] == 'Open']) if 'status' in tickets_df.columns else 0
-        st.metric("Pending Issues", open_tickets)
+        # Count only 'Open' tickets
+        open_count = len(tickets_df[tickets_df['status'] == 'Open']) if not tickets_df.empty else 0
+        st.metric("Pending Actions", open_count, delta_color="inverse")
     
     st.divider()
 
-    # 3. Visualizations (The "Wow" Factor)
-    c1, c2 = st.columns(2)
+    # 4. TICKET MANAGEMENT (The "Close Ticket" Feature)
+    st.subheader("🛠️ Ticket Management")
     
-    with c1:
-        st.subheader("🎫 Issues by Category")
-        if not tickets_df.empty:
-            # Bar chart of Issue Types
-            chart_data = tickets_df['issue_type'].value_counts()
-            st.bar_chart(chart_data)
-        else:
-            st.info("No data yet.")
-            
-    with c2:
-        st.subheader("📅 Activity Timeline")
-        if not tickets_df.empty:
-            # Line chart of tickets over time
-            tickets_df['created_at'] = pd.to_datetime(tickets_df['created_at'])
-            time_data = tickets_df.set_index('created_at')['id'].resample('D').count()
-            st.line_chart(time_data)
-        else:
-            st.info("No data yet.")
+    # Filter for Open tickets to show action buttons
+    open_tickets = tickets_df[tickets_df['status'] == 'Open'] if not tickets_df.empty else pd.DataFrame()
+
+    if not open_tickets.empty:
+        st.info(f"You have {len(open_tickets)} open tickets requiring attention.")
+        
+        # Create a card for each ticket
+        for index, row in open_tickets.iterrows():
+            with st.expander(f"🔴 #{row['id']} - {row['issue_type']} ({row['username']})", expanded=True):
+                c1, c2 = st.columns([3, 1])
+                with c1:
+                    st.write(f"**Description:** {row['description']}")
+                    st.caption(f"Raised: {row['created_at']}")
+                with c2:
+                    # The ACTION Button
+                    if st.button("✅ Mark Closed", key=f"close_{row['id']}"):
+                        if close_ticket(row['id']):
+                            st.toast(f"Ticket #{row['id']} closed successfully!")
+                            st.rerun() # Refresh page instantly
+    else:
+        st.success("🎉 No pending tickets! Good job.")
 
     st.divider()
 
-    # 4. Master Data View
-    st.subheader("🗂️ All Database Records")
-    tab_users, tab_tickets = st.tabs(["Employees", "Support Tickets"])
+    # 5. DATA OVERVIEW
+    t1, t2 = st.tabs(["👥 Employee List", "🗄️ Ticket History"])
     
-    with tab_users:
-        st.dataframe(users_df[['username', 'role', 'created_at']], use_container_width=True)
-    
-    with tab_tickets:
-        st.dataframe(tickets_df, use_container_width=True)
+    with t1:
+        st.write("List of all registered employees (Admins hidden).")
+        st.dataframe(users_df, use_container_width=True)
+        
+    with t2:
+        st.write("Full history of all tickets (Open & Closed).")
+        # Style the dataframe to highlight Status
+        if not tickets_df.empty:
+            st.dataframe(
+                tickets_df.style.applymap(
+                    lambda x: 'background-color: #ffcdd2' if x == 'Open' else 'background-color: #c8e6c9',
+                    subset=['status']
+                ),
+                use_container_width=True
+            )
+        else:
+            st.info("No records found.")
         
 elif page == "🛠️ Service Desk":
     st.header("🛠️ Employee Service Desk")
