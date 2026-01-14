@@ -141,10 +141,10 @@ elif page == "📘 Document Summary":
         partial_summaries = []
         with st.spinner("Analyzing document with AI..."):
             for chunk in chunks[:5]:  # limit for safety
-            response = model.generate_content(
-                f"Summarize this part of the document:\n{chunk}"
-            )
-            partial_summaries.append(response.text)
+                response = model.generate_content(
+                    f"Summarize this part of the document:\n{chunk}"
+                )
+                partial_summaries.append(response.text)
 
         final_summary = model.generate_content(
                 "Combine the following summaries into a clear bullet-point summary:\n"
