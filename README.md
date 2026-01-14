@@ -1,5 +1,9 @@
 # 📘 SmartDoc AI - Enterprise Knowledge Assistant
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://smartdocs-ai.streamlit-ai.app)
+
+**🔗 Live Demo:** [Click here to view the App](https://smartdocs-ai.streamlit.app)
+
 ## 🚀 Overview
 SmartDoc AI is an intelligent document processing system designed to solve the "Knowledge Silo" problem in large organizations. It uses **Retrieval-Augmented Generation (RAG)** to allow employees to query, summarize, and visualize unstructured data (PDFs) instantly.
 
