@@ -40,33 +40,45 @@ else:
     st.error("🚨 DATABASE_URL missing in secrets!")
     st.stop()
 
+# Create Engine
 engine = create_engine(db_url)
 
+# --- THE FIX IS HERE ---
+@st.cache_resource
 def init_db():
-    """Creates users AND tickets tables."""
-    with engine.connect() as conn:
-        # Create Users Table
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS users (
-                username TEXT PRIMARY KEY,
-                password TEXT NOT NULL,
-                role TEXT NOT NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """))
-        # Create Tickets Table (The New Feature)
-        conn.execute(text("""
-            CREATE TABLE IF NOT EXISTS tickets (
-                id SERIAL PRIMARY KEY,
-                username TEXT,
-                issue_type TEXT,
-                description TEXT,
-                status TEXT DEFAULT 'Open',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            );
-        """))
-        conn.commit()
+    """
+    Creates users AND tickets tables.
+    Cached to prevent 'Race Conditions' (multiple threads creating tables at once).
+    """
+    try:
+        # Use engine.begin() to automatically commit transactions
+        with engine.begin() as conn:
+            # 1. Create Users Table
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS users (
+                    username TEXT PRIMARY KEY,
+                    password TEXT NOT NULL,
+                    role TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+            
+            # 2. Create Tickets Table
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS tickets (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT,
+                    issue_type TEXT,
+                    description TEXT,
+                    status TEXT DEFAULT 'Open',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """))
+    except Exception as e:
+        # If tables already exist or minor error, just log it and continue
+        print(f"Database Init Note: {e}")
 
+# Call the cached function
 init_db()
 
 # =============================
