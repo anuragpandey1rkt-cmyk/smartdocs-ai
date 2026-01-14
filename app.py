@@ -172,7 +172,7 @@ def close_ticket(ticket_id):
     except Exception as e:
         st.error(f"Error closing ticket: {e}")
         return False
-        
+
 # =============================
 # SESSION MANAGEMENT
 # =============================
@@ -343,7 +343,6 @@ elif page == "📊 Admin Dashboard":
     # If the user is NOT an Admin, stop everything and hide the page.
     if st.session_state.role != "Admin":
         st.error("⛔ ACCESS DENIED: You do not have permission to view this page.")
-        st.image("https://media.giphy.com/media/njYrp176NQsHS/giphy.gif", width=300) # Optional fun GIF
         st.stop() # This prevents the rest of the code from running
 
     # 2. Fetch Data (With Filters)
