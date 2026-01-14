@@ -228,7 +228,8 @@ if uploaded_file:
 # NAVIGATION
 # Added "🛠️ Service Desk"
 # UPDATE THIS LINE IN YOUR CODE:
-page = st.sidebar.radio("Navigate", ["🏠 Home", "📘 Summary", "🔑 Insights", "❓ Chat", "🛠️ Service Desk", "📊 Admin Dashboard"])st.sidebar.divider()
+page = st.sidebar.radio("Navigate", ["🏠 Home", "📘 Summary", "🔑 Insights", "❓ Chat", "🛠️ Service Desk", "📊 Admin Dashboard"])
+st.sidebar.divider()
 st.sidebar.button("Logout", on_click=logout)
 
 # =============================
