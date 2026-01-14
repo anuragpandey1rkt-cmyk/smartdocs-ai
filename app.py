@@ -99,7 +99,6 @@ def logout():
     st.session_state.logged_in = False
     st.session_state.role = None
     st.session_state.current_doc_text = None
-    st.rerun()
 
 # =============================
 # AUTH SCREEN
@@ -156,7 +155,9 @@ if uploaded_file:
 
 page = st.sidebar.radio("Navigate", ["🏠 Home", "📘 Summary", "🔑 Insights", "❓ Chat"])
 st.sidebar.divider()
-st.sidebar.button("Logout", on_click=logout)
+if st.sidebar.button("Logout"):
+    logout()
+    st.rerun()
 
 # =============================
 # PAGES
