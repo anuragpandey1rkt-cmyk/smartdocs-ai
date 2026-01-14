@@ -3,3 +3,4 @@ supabase
 groq
 PyPDF2
 pandas
+gTTS
