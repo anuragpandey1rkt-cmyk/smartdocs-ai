@@ -1,6 +1,7 @@
 streamlit
-supabase
 groq
 PyPDF2
 pandas
 gTTS
+psycopg2-binary
+sqlalchemy
