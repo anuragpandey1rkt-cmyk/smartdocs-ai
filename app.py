@@ -215,16 +215,25 @@ if not st.session_state.logged_in:
         nu = st.text_input("Pick a Username")
         np = st.text_input("Pick a Password", type="password")
         if st.button("Create Account"):
-            # First user is Admin, others are Employees
+            # LOGIC: 
+            # 1. If username is 'admin' (or 'Admin'), FORCE role to be 'Admin'.
+            # 2. If it's the very first user in the system, make them 'Admin'.
+            # 3. Everyone else is 'Employee'.
+            
             try:
                 with engine.connect() as conn:
                     count = conn.execute(text("SELECT COUNT(*) FROM users")).scalar()
             except: count = 0
             
-            role = "Admin" if count == 0 else "Employee"
+            if nu.lower() == "admin":
+                role = "Admin"  # <--- THIS IS THE FIX YOU WANTED
+            elif count == 0:
+                role = "Admin"  # First user fallback
+            else:
+                role = "Employee"
             
             if save_user(nu, np, role):
-                st.success("Account created! Please log in.")
+                st.success(f"Account created as {role}! Please log in.")
             else:
                 st.error("Username already taken.")
     st.stop()
