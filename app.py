@@ -185,7 +185,7 @@ if uploaded_file:
             else:
                 st.sidebar.error("Could not read PDF text.")
 
-page = st.sidebar.radio("Navigate", ["🏠 Home", "📘 Summary", "🔑 Insights", "❓ Chat", "🎓 Take a Quiz"])
+page = st.sidebar.radio("Navigate", ["🏠 Home", "📘 Summary", "🔑 Insights", "❓ Chat", "🎓 Take a Quiz", "🕸️ Knowledge Map"])
 st.sidebar.divider()
 if st.sidebar.button("Logout"):
     logout()
@@ -329,3 +329,37 @@ elif page == "🎓 Take a Quiz":
                             st.success(f"Correct Answer: {ans_text}")
                     else:
                         st.write(full_q)
+elif page == "🕸️ Knowledge Map":
+    st.header("🕸️ Knowledge Graph")
+    
+    if not st.session_state.current_doc_text:
+        st.warning("Please upload a document first.")
+    else:
+        if st.button("Generate Knowledge Map"):
+            with st.spinner("Mapping connections..."):
+                doc_preview = st.session_state.current_doc_text[:10000]
+                
+                # Ask AI to generate Mermaid.js syntax
+                graph_prompt = f"""
+                Create a Mermaid.js flowchart syntax to visualize the key concepts in this text.
+                Use 'graph TD;' format.
+                Keep it simple (max 10 nodes).
+                Do not use special characters or brackets in node names.
+                Example Output:
+                graph TD;
+                    A[Concept 1] --> B[Concept 2];
+                    A --> C[Concept 3];
+                    B --> D[Result];
+                
+                TEXT:
+                {doc_preview}
+                """
+                
+                graph_code = ai(graph_prompt)
+                
+                # Clean up code (sometimes AI adds markdown blocks)
+                graph_code = graph_code.replace("```mermaid", "").replace("```", "").strip()
+                
+                st.markdown(f"```mermaid\n{graph_code}\n```")
+                st.info("💡 This graph visualizes how concepts in your document are connected.")
+                
