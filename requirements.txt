@@ -1,9 +1,4 @@
 streamlit
-groq
-langchain
-langchain-groq
-langchain-community
-langchain-huggingface
-faiss-cpu
-pypdf
-python-dotenv
+PyPDF2
+google-generativeai
+pandas
