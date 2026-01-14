@@ -7,7 +7,8 @@ from groq import Groq
 from datetime import datetime
 from gtts import gTTS
 import io
-
+import sqlalchemy
+from sqlalchemy import create_engine, text
 # =============================
 # APP CONFIG
 # =============================
@@ -20,9 +21,32 @@ st.set_page_config(
 # =============================
 # STORAGE & SETUP
 # =============================
-DATA_DIR = "data"
-USERS_FILE = f"{DATA_DIR}/users.csv"
-os.makedirs(DATA_DIR, exist_ok=True)
+# Database Setup
+if "DATABASE_URL" in st.secrets:
+    db_url = st.secrets["DATABASE_URL"]
+    # Fix for some dialect issues if url starts with 'postgres://'
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
+else:
+    st.error("🚨 DATABASE_URL missing in secrets!")
+    st.stop()
+
+engine = create_engine(db_url)
+
+def init_db():
+    with engine.connect() as conn:
+        conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS users (
+                username TEXT PRIMARY KEY,
+                password TEXT NOT NULL,
+                role TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """))
+        conn.commit()
+
+init_db()
+
 
 if "GROQ_API_KEY" not in st.secrets:
     st.error("🚨 GROQ_API_KEY not found in secrets. Please add it to .streamlit/secrets.toml")
@@ -65,30 +89,36 @@ def hash_pw(pw):
     return hashlib.sha256(pw.encode()).hexdigest()
 
 def load_users():
-    if os.path.exists(USERS_FILE):
-        return pd.read_csv(USERS_FILE)
-    return pd.DataFrame(columns=["username", "password", "role", "created_at"])
+    """Fetches all users (For debugging/admin)."""
+    with engine.connect() as conn:
+        result = conn.execute(text("SELECT username, role FROM users"))
+        return pd.DataFrame(result.fetchall(), columns=["username", "role"])
 
 def save_user(username, password, role):
-    df = load_users()
-    if username in df['username'].values:
+    """Saves a new user to the Cloud Database."""
+    try:
+        with engine.connect() as conn:
+            conn.execute(
+                text("INSERT INTO users (username, password, role) VALUES (:u, :p, :r)"),
+                {"u": username, "p": hash_pw(password), "r": role}
+            )
+            conn.commit()
+        return True
+    except sqlalchemy.exc.IntegrityError:
+        return False # Username already exists
+    except Exception as e:
+        st.error(f"Database Error: {e}")
         return False
-    new_user = pd.DataFrame({
-        "username": [username],
-        "password": [hash_pw(password)],
-        "role": [role],
-        "created_at": [datetime.now()]
-    })
-    df = pd.concat([df, new_user], ignore_index=True)
-    df.to_csv(USERS_FILE, index=False)
-    return True
 
 def authenticate(username, password):
-    df = load_users()
-    if df.empty: return None
-    user = df[(df.username == username) & (df.password == hash_pw(password))]
-    return user.iloc[0]["role"] if not user.empty else None
-
+    """Checks credentials against the Cloud Database."""
+    with engine.connect() as conn:
+        result = conn.execute(
+            text("SELECT role FROM users WHERE username = :u AND password = :p"),
+            {"u": username, "p": hash_pw(password)}
+        ).fetchone()
+        
+    return result[0] if result else None
 # =============================
 # SESSION MANAGEMENT
 # =============================
