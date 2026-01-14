@@ -17,7 +17,11 @@ st.set_page_config(
 USERS_FILE = "data/users.csv"
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("gemini-pro")
+model = genai.GenerativeModel("gemini-1.5-flash")
+
+def chunk_text(text, max_chars=4000):
+    return [text[i:i + max_chars] for i in range(0, len(text), max_chars)]
+
 
 # =============================
 # UTILITIES
@@ -133,8 +137,22 @@ elif page == "📘 Document Summary":
     pdf = st.file_uploader("Upload PDF", type="pdf")
     if pdf:
         text = extract_text(pdf)
-        summary = model.generate_content(f"Summarize this document:\n{text}").text
-        st.markdown(summary)
+        chunks = chunk_text(text)
+        partial_summaries = []
+        with st.spinner("Analyzing document with AI..."):
+            for chunk in chunks[:5]:  # limit for safety
+            response = model.generate_content(
+                f"Summarize this part of the document:\n{chunk}"
+            )
+            partial_summaries.append(response.text)
+
+        final_summary = model.generate_content(
+                "Combine the following summaries into a clear bullet-point summary:\n"
+            + "\n".join(partial_summaries)
+        ).text
+
+        st.markdown(final_summary)
+
 
 elif page == "❓ Ask Questions":
     st.markdown("## ❓ Ask Questions")
