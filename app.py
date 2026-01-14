@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import hashlib
 from PyPDF2 import PdfReader
-import google.generativeai as genai
+from groq import Groq
 
 # =============================
 # CONFIG
@@ -16,8 +16,20 @@ st.set_page_config(
 
 USERS_FILE = "data/users.csv"
 
-genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel("models/gemini-1.0-pro")
+
+groq_client = Groq(api_key=st.secrets["GROQ_API_KEY"])
+
+def groq_generate(prompt):
+    response = groq_client.chat.completions.create(
+        model="llama3-8b-8192",
+        messages=[
+            {"role": "system", "content": "You are a professional document analysis assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.3
+    )
+    return response.choices[0].message.content
+
 
 try:
     _ = model.generate_content("Say OK").text
@@ -149,30 +161,33 @@ elif page == "📘 Document Summary":
         text = extract_text(pdf)
 
         if len(text.strip()) < 100:
-            st.error("PDF contains no readable text.")
+            st.error("PDF has no readable text.")
             st.stop()
 
-        chunks = chunk_text(text)
-        partial = []
+        def chunk_text(text, size=3000):
+            return [text[i:i+size] for i in range(0, len(text), size)]
+
+        chunks = chunk_text(text)[:4]  # safety limit
+        summaries = []
 
         with st.spinner("Summarizing document with AI..."):
             try:
-                for chunk in chunks[:3]:
-                    res = model.generate_content(
-                        f"Summarize this section briefly:\n{chunk}"
+                for chunk in chunks:
+                    summary = groq_generate(
+                        f"Summarize the following document section in bullet points:\n{chunk}"
                     )
-                    partial.append(res.text)
+                    summaries.append(summary)
 
-                final = model.generate_content(
-                    "Combine the following summaries into a concise bullet-point summary:\n"
-                    + "\n".join(partial)
+                final_summary = groq_generate(
+                    "Combine the following summaries into a concise professional summary:\n"
+                    + "\n".join(summaries)
                 )
 
                 st.success("Summary generated successfully")
-                st.markdown(final.text)
+                st.markdown(final_summary)
 
             except Exception as e:
-                st.error("❌ AI service failed. Please try a smaller document.")
+                st.error("AI service failed. Please try again.")
 
 elif page == "❓ Ask Questions":
     st.markdown("## ❓ Ask Questions")
