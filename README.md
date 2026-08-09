@@ -4,6 +4,8 @@
 
 **🔗 Live Demo:** [Click here to view the App](https://smartdocs-ai.streamlit.app)
 
+
+
 ## 🚀 Overview
 SmartDoc AI is an intelligent document processing system designed to solve the "Knowledge Silo" problem in large organizations. It transforms static employee handbooks and technical manuals into an interactive **Digital Assistant**.
 
